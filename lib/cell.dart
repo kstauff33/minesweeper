@@ -1,124 +1,98 @@
 import 'package:flutter/material.dart';
-import 'package:minesweeper/board.dart';
 import 'package:minesweeper/cell_data.dart';
 
-class Cell extends StatefulWidget {
+import 'game.dart';
+
+class Cell extends StatelessWidget {
   final CellData data;
-  final double cellWidth, cellHeight;
-  final Board board;
-  final Function onGameEnded;
-  final Function isGameActive;
+  final double cellSize;
 
-  const Cell(
-      {Key key,
-      this.data,
-      this.cellWidth,
-      this.cellHeight,
-      this.board,
-      this.onGameEnded,
-      this.isGameActive})
-      : super(key: key);
+  const Cell({
+    Key key,
+    @required this.data,
+    @required this.cellSize,
+  }) : super(key: key);
 
-  @override
-  _CellState createState() => new _CellState();
-}
-
-class _CellState extends State<Cell> {
   set state(CellState newState) {
-    widget.data.state = newState;
+    data.state = newState;
   }
 
   @override
   Widget build(BuildContext context) {
-    widget.data.onFloodFilled = _onFloodFilled;
+    final game = GameProvider.of(context);
+
+//    return StreamBuilder<GameState>(
+//      stream: game.state.where(),
+//      builder: (context, snapshot) {},
+//    );
+
     return GestureDetector(
-      onTap: _tapped,
-      onLongPress: _longPressed,
+      onTap: () => game.selectCell(data.x, data.y),
+      onLongPress: () => game.flagCell(data.x, data.y),
       child: Padding(
         padding: EdgeInsets.all(3.0),
         child: Container(
-          height: widget.cellWidth - 6.0,
-          width: widget.cellWidth - 6.0,
+          height: cellSize - 6.0,
+          width: cellSize - 6.0,
           color: _backgroundColor(),
-          child: Center(child: _getInternal()),
+          child: Center(child: _getInternal(context)),
         ),
       ),
     );
   }
 
   Color _backgroundColor() {
-    if (widget.data.hasBomb) {
+    if (data.hasBomb) {
       return Colors.grey.shade300;
     }
-    if (widget.data.surrounding == 0 && widget.data.state == CellState.opened) {
+    if (data.adjacentBombs == 0 && data.state == CellState.opened) {
       return Colors.grey.shade600;
     }
     return Colors.grey.shade300;
   }
 
-  _getInternal() {
-    switch (widget.data.state) {
-      case CellState.flagged:
-        return Icon(Icons.flag, color: Colors.red);
-      case CellState.opened:
-        if (widget.data.hasBomb) {
-          return Icon(Icons.cancel);
-        }
-        if (widget.data.surrounding == 0) {
-          return Padding(padding: EdgeInsets.all(0.0));
-        }
-        return Text(
-          '${widget.data.surrounding}',
-          style: TextStyle(
-            color: _textColor(widget.data.surrounding),
-            fontWeight: FontWeight.bold,
-          ),
+  Widget _flagIcon() => Icon(Icons.flag, color: Colors.red);
+
+  Widget _bombIcon() => Icon(Icons.cancel);
+
+  _getInternal(BuildContext context) {
+    var lastEvent = GameProvider.of(context).state.value;
+    if (lastEvent is GameOver && data.hasBomb) {
+      if (data.state == CellState.flagged) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: <Widget>[
+            _flagIcon(),
+            _bombIcon(),
+          ],
         );
-      case CellState.blank:
+      }
+      return _bombIcon();
+    }
+
+    if (data.state == CellState.flagged) {
+      return _flagIcon();
+    }
+
+    if (data.state == CellState.opened) {
+      if (data.hasBomb) {
+        return _bombIcon();
+      }
+
+      if (data.adjacentBombs == 0) {
         return Padding(padding: EdgeInsets.all(0.0));
-    }
-  }
-
-  void _tapped() {
-    if (widget.isGameActive()) {
-      switch (widget.data.state) {
-        case CellState.opened:
-          break;
-        case CellState.flagged:
-          break;
-        case CellState.blank:
-          if (widget.data.hasBomb) {
-            widget.onGameEnded(false);
-          } else {
-            widget.board.floodFill(widget.data.x, widget.data.y);
-          }
-          if (widget.board.shouldEndGame()) {
-            widget.onGameEnded(true);
-          }
-          setState(() {
-            state = CellState.opened;
-          });
-          break;
       }
-    }
-  }
 
-  void _longPressed() {
-    if (widget.isGameActive()) {
-      switch (widget.data.state) {
-        case CellState.opened:
-          break;
-        case CellState.flagged:
-          setState(() {
-            state = CellState.blank;
-          });
-          break;
-        case CellState.blank:
-          setState(() {
-            state = CellState.flagged;
-          });
-      }
+      return Text(
+        '${data.adjacentBombs}',
+        style: TextStyle(
+          color: _textColor(data.adjacentBombs),
+          fontWeight: FontWeight.bold,
+        ),
+      );
     }
+
+    return Padding(padding: EdgeInsets.all(0.0));
   }
 
   Color _textColor(int val) {
@@ -141,9 +115,5 @@ class _CellState extends State<Cell> {
         return Colors.yellow;
     }
     return Colors.black;
-  }
-
-  _onFloodFilled() {
-    setState(() {});
   }
 }
